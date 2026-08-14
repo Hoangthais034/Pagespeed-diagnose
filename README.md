@@ -6,8 +6,14 @@ Claude Code plugin marketplace containing `pagespeed-audit`: a skill for measuri
 
 Add this repo as a plugin marketplace in Claude Code, then install the `pagespeed-audit` plugin.
 
+## Usage
+
+- Slash command: `/pagespeed-audit <url>`
+- Or just ask in natural language, e.g. "audit LCP for https://example.com" — Claude will pick up the `lcp-audit` skill automatically based on context.
+
 ## Structure
 
 - `.claude-plugin/marketplace.json` — marketplace manifest
 - `.claude-plugin/plugin.json` — plugin manifest
+- `commands/pagespeed-audit.md` — the `/pagespeed-audit` slash command
 - `skills/lcp-audit/SKILL.md` — the LCP audit skill
