@@ -1,6 +1,6 @@
 {
-  "name": "LCP Performance Audit",
-  "description": "Personal Claude Code plugins",
+  "name": "claude-yho-plugins",
+  "description": "Yho Claude Code plugins",
   "owner": {
     "name": "Vu Thai Hoang",
     "email": "hoangvu@insights.is"
