@@ -1,0 +1,9 @@
+{
+  "name": "pagespeed-audit",
+  "description": "Measure and diagnose LCP/performance of a web page using Playwright (mobile emulation, network/CPU throttle, resource blocking, CPU profiling)",
+  "version": "1.0.0",
+  "author": {
+    "name": "Vu Thai Hoang",
+    "email": "hoangthais034@gmail.com"
+  }
+}
