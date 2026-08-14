@@ -18,7 +18,43 @@ These are available techniques to use as needed, not a mandatory ordered checkli
 - **CPU Profiling** (section 6) — use when you suspect JS is blocking the main thread and need real CPU numbers instead of guessing from network behavior. If JS-blocking is the obvious suspicion from the start, this can run before the breakdown.
 - **Cross-check PSI field data** (section 7) — usually best done last since it's the metric that decides whether further optimization is even worth it, but can be checked early to gauge severity before investing time in deep investigation.
 
-Finally, summarize the results into a report: baseline LCP/TBT, root cause (per the breakdown), the offending resource/script, and concrete fix recommendations.
+## Final report
+
+When the investigation is done, write the findings to a markdown file instead of only summarizing in chat. Get today's date with the `date +%F` shell command, then write to `./reports/lcp-audit-<domain>-<date>.md` (create the `reports/` directory if it doesn't exist), using this structure — omit any section you didn't actually run:
+
+```markdown
+# LCP Audit Report — <domain>
+
+- URL: <full URL audited>
+- Date: <YYYY-MM-DD>
+- Conditions: Mobile 390x844 DPR3, Slow 4G + CPU throttle 4x (and/or Regular 4G)
+
+## Baseline
+- LCP (median of N runs): <value>
+- TBT (median of N runs): <value>
+- LCP element: <lcpUrl>
+
+## LCP Breakdown
+- TTFB: <value>
+- Resource load delay: <value>
+- Resource load time: <value>
+- Element render delay: <value>
+
+## Resource blocking results
+<table or list of what was blocked and the resulting LCP/TBT, only if this step was run>
+
+## CPU profiling results
+<top offending scripts by self time, only if this step was run>
+
+## PSI field data
+<CrUX field data LCP, only if this step was checked>
+
+## Root cause
+<the confirmed root cause(s), referencing which measurement proved it>
+
+## Recommendations
+<concrete, actionable fixes, one per root cause>
+```
 
 ---
 
@@ -139,6 +175,8 @@ for (const pattern of PATTERNS_TO_BLOCK) {
 - To know the REAL impact of N individual resources, add a "block everything at once" scenario to see the combined effect — don't jump to conclusions from blocking things one at a time (many individually-harmless-looking third parties can add up to something significant).
 
 ### Common pattern reference (Playwright glob vs Chrome DevTools URLPattern)
+
+These are examples from **Shopify** sites specifically (the site this methodology was first developed on) — not a fixed/required list. On a non-Shopify site, most of these won't apply at all. Always inspect the actual page's network requests to find the real third-parties worth investigating, and write a pattern for those instead.
 
 | Target | Playwright (`page.route`) | Chrome DevTools Request Blocking (URLPattern) |
 |---|---|---|
