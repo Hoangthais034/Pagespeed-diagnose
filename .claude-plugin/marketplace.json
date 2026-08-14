@@ -8,7 +8,7 @@
   "plugins": [
     {
       "name": "pagespeed-audit",
-      "description": "Measure and diagnose LCP/performance of a web page using Playwright",
+      "description": "Measure and diagnose LCP/performance of a web page using Playwright (mobile or desktop)",
       "version": "1.0.0",
       "source": "."
     }

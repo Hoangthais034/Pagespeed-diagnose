@@ -1,6 +1,6 @@
 # pagespeed-playwright
 
-Claude Code plugin marketplace containing `pagespeed-audit`: a skill for measuring and diagnosing LCP/performance of a web page using Playwright (mobile emulation, network/CPU throttle, resource blocking, LCP breakdown, CPU profiling, PSI cross-check).
+Claude Code plugin marketplace containing `pagespeed-audit`: a skill for measuring and diagnosing LCP/performance of a web page using Playwright (mobile or desktop emulation, network/CPU throttle, resource blocking, LCP breakdown, CPU profiling, PSI cross-check).
 
 ## Install
 
@@ -27,8 +27,8 @@ To update to the latest version after the marketplace repo changes:
 
 ## Usage
 
-- Slash command: `/pagespeed-audit <url>`
-- Or just ask in natural language, e.g. "audit LCP for https://example.com" — Claude will pick up the `lcp-audit` skill automatically based on context.
+- Slash command: `/pagespeed-audit <url> [mobile|desktop]` — if you omit `mobile`/`desktop`, Claude will ask which one to audit.
+- Or just ask in natural language, e.g. "audit LCP for https://example.com on desktop" — Claude will pick up the `lcp-audit` skill automatically based on context.
 
 ## Structure
 

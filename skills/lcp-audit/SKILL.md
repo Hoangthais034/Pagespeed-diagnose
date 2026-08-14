@@ -1,10 +1,12 @@
 ---
-description: Measure and diagnose LCP (Largest Contentful Paint) / web performance using Playwright — mobile emulation, network/CPU throttling, resource blocking, LCP breakdown, CPU profiling. Use when the user wants to audit load speed / LCP / Core Web Vitals for a specific URL.
+description: Measure and diagnose LCP (Largest Contentful Paint) / web performance using Playwright — mobile or desktop emulation, network/CPU throttling, resource blocking, LCP breakdown, CPU profiling. Use when the user wants to audit load speed / LCP / Core Web Vitals for a specific URL.
 ---
 
 You are performing an LCP/performance audit for URL: `$ARGUMENTS`
 
 If the user didn't provide a URL, ask for it before starting.
+
+If the user didn't specify **mobile** or **desktop**, ask which one to audit before starting — the base setup, throttling profile, and typical bottlenecks differ significantly between the two (see section 1 and the device-specific notes throughout).
 
 All code below runs through the `browser_run_code_unsafe` tool from the Playwright MCP server bundled with this plugin (written as `async (page) => { ... }`). If that tool isn't available, tell the user the `playwright` MCP server (declared in this plugin's `.mcp.json`) may need to be approved/enabled first.
 
@@ -27,7 +29,8 @@ When the investigation is done, write the findings to a markdown file instead of
 
 - URL: <full URL audited>
 - Date: <YYYY-MM-DD>
-- Conditions: Mobile 390x844 DPR3, Slow 4G + CPU throttle 4x (and/or Regular 4G)
+- Device: <Mobile 390x844 DPR3 | Desktop 1920x1080 DPR1>
+- Conditions: <Slow 4G + CPU throttle 4x (and/or Regular 4G) for mobile | Broadband + no CPU throttle for desktop>
 
 ## Baseline
 - LCP (median of N runs): <value>
@@ -58,9 +61,13 @@ When the investigation is done, write the findings to a markdown file instead of
 
 ---
 
-## 1. Base setup: mobile emulation + network/CPU throttle
+## 1. Base setup: mobile or desktop emulation + network/CPU throttle
 
 Create a fresh `context` for each measurement (isolates cache/cookies), enable a CDP session to control network/CPU throttling. Always use a new `context.newPage()` — never reuse an existing `page` — to avoid `addInitScript` stacking across runs and to avoid stale cache/cookies skewing the measurement.
+
+Pick the device profile matching what the user asked for (mobile is the default Lighthouse-style profile; desktop mirrors PageSpeed Insights' desktop analysis).
+
+### Mobile profile
 
 ```js
 async (page) => {
@@ -104,6 +111,53 @@ async (page) => {
   await context.close();
 }
 ```
+
+### Desktop profile
+
+Desktop users are overwhelmingly on wired/broadband connections with far more CPU headroom than a mobile device, so both throttles are lighter (and CPU throttle is often skipped entirely, matching PSI/Lighthouse desktop defaults).
+
+```js
+async (page) => {
+  const URL = '<TARGET_URL>'; // replace with the URL to measure
+
+  const browser = page.context().browser();
+  const context = await browser.newContext({
+    viewport: { width: 1920, height: 1080 },      // common desktop resolution
+    deviceScaleFactor: 1,
+    isMobile: false,
+    hasTouch: false,
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+  });
+  const p = await context.newPage();
+  const cdp = await context.newCDPSession(p);
+
+  await cdp.send('Network.enable');
+  await cdp.send('Network.setCacheDisabled', { cacheDisabled: true }); // always disable cache for a "cold load"
+  await cdp.send('Network.clearBrowserCache');
+
+  // Broadband — PSI/Lighthouse desktop default (much lighter than mobile's Slow 4G)
+  await cdp.send('Network.emulateNetworkConditions', {
+    offline: false,
+    latency: 40,
+    downloadThroughput: (10 * 1024 * 1024) / 8,
+    uploadThroughput: (10 * 1024 * 1024) / 8
+  });
+
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 }); // 1x = no throttle, matches desktop hardware
+
+  await p.goto(URL, { waitUntil: 'load', timeout: 45000 });
+  await p.waitForTimeout(4000); // extra wait so LCP/long tasks have time to fire
+
+  await context.close();
+}
+```
+
+**Rules for desktop audits:**
+- Never reuse the mobile viewport/UA/throttle values for a desktop run — a desktop page frequently serves different responsive assets (larger hero images, different CSS breakpoints, no touch-target JS), so mixing profiles gives a misleading LCP element or size.
+- Report the LCP element's actual rendered size/URL for desktop separately — sites often swap to a much larger hero image at desktop breakpoints, which can dominate `resourceLoadTime` even on fast networks.
+- Since CPU throttle is 1x, a high `elementRenderDelay` on desktop is a stronger signal of genuinely slow/blocking JS (not just an artifact of throttling) — weigh it accordingly in section 4's breakdown.
+- Skip the "Slow 4G" harsh scenario for desktop; use Broadband as the single baseline unless the user specifically wants a worst-case desktop network test.
+- CrUX field data in section 7 is segmented by form factor — when cross-checking PSI, make sure to read the **desktop** tab/report, not mobile.
 
 ---
 
