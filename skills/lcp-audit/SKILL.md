@@ -235,14 +235,61 @@ These are examples from **Shopify** sites specifically (the site this methodolog
 | Target | Playwright (`page.route`) | Chrome DevTools Request Blocking (URLPattern) |
 |---|---|---|
 | PageFly | `**/*pagefly*` | `*://*/*pagefly*` |
-| Judge.me | `**/*judgeme*` | `*://*/*judgeme*` |
+| Judge.me (app extension) | `**/extensions/*/judgeme-*/**` | `*://cdn.shopify.com/extensions/*/judgeme-*/*` |
+| Judge.me tracking | `**/tracking.aws.judge.me/**` | `*://tracking.aws.judge.me/*` |
+| Discount Mixer | `**/extensions/*/discount-mixer-*/**` | `*://cdn.shopify.com/extensions/*/discount-mixer-*/*` |
+| Growave (wishlist/loyalty) | `**/static.growave.io/**` | `*://static.growave.io/*` |
+| Instagram Feed | `**/extensions/*/gsc-instagram-feed-*/**` | `*://cdn.shopify.com/extensions/*/gsc-instagram-feed-*/*` |
+| Forms app (extension + backend) | `**/extensions/*/forms-*/**`, `**/forms.shopifyapps.com/**` | `*://cdn.shopify.com/extensions/*/forms-*/*`, `*://forms.shopifyapps.com/*` |
+| Cart Insights | `**/extensions/*/cart-insights-*/**` | `*://cdn.shopify.com/extensions/*/cart-insights-*/*` |
+| GetSiteControl (popups) | `**/shopify-apps.getsitectrl.com/**` | `*://shopify-apps.getsitectrl.com/*` |
+| Any Shopify app extension (catch-all) | `**/extensions/*/**` | `*://cdn.shopify.com/extensions/*/*` |
+| Microsoft Clarity | `**/*clarity.ms*` | `*://*clarity.ms/*` |
 | Google GTM/Ads | `**/*googletagmanager*` | `*://*googletagmanager.com/*` |
-| Facebook Pixel | `**/*facebook.com*` | `*://*facebook.com/*` |
+| Google Analytics | `**/*google-analytics*` | `*://*google-analytics.com/*` |
+| Google/DoubleClick Ads | `**/*doubleclick*` | `*://*doubleclick.net/*` |
+| Facebook Pixel | `**/connect.facebook.net/**` | `*://connect.facebook.net/*` |
 | Shop Pay/Customer Accounts | `**/shopifycloud/shop-js/**` | `*://*/shopifycloud/shop-js/*` |
 | Web Pixels | `**/web-pixels/**` | `*://*/web-pixels/*` |
 | Shopify Telemetry | `**/otlp-http-production*/**` | `*://otlp-http-production*/*` |
+| Per-product AJAX prefetch (recently-viewed/quick-view) | `**/*/products/*.js` | `*://*/products/*.js` |
 
 > Newer Chrome DevTools versions validate patterns against the **URLPattern API** — bare globs like `**/*x*` aren't accepted, you need a full `scheme://host/path`.
+
+### Quick copy-paste block list
+
+Ready-to-paste arrays covering the common offenders above, split by how they should actually be fixed in production (this is for *measuring impact during an audit* — the production fix is almost always "defer/lazy-load", not "block forever"; see the Recommendations section of the report template).
+
+**Tier 1 — defer/lazy-load candidates** (functional apps, just shouldn't block first paint):
+
+```js
+const DEFER_CANDIDATES = [
+  '**/extensions/*/judgeme-*/**',
+  '**/tracking.aws.judge.me/**',
+  '**/extensions/*/discount-mixer-*/**',
+  '**/static.growave.io/**',
+  '**/extensions/*/gsc-instagram-feed-*/**',
+  '**/extensions/*/forms-*/**',
+  '**/forms.shopifyapps.com/**',
+  '**/extensions/*/cart-insights-*/**',
+  '**/shopify-apps.getsitectrl.com/**'
+];
+```
+
+**Tier 2 — pure tracking/analytics** (no user-facing value, safe to fully drop if unused, or defer to `window.load`):
+
+```js
+const TRACKING_CANDIDATES = [
+  '**/*clarity.ms*',
+  '**/*googletagmanager*',
+  '**/*google-analytics*',
+  '**/*doubleclick*',
+  '**/connect.facebook.net/**',
+  '**/otlp-http-production*/**'
+];
+```
+
+For Chrome DevTools → Network → Request Blocking, paste each pattern from the URLPattern column above as a separate row (bulk-paste isn't supported by the DevTools UI — add one at a time or import via a DevTools workspace/recorder if available).
 
 ---
 
