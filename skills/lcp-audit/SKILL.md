@@ -12,13 +12,16 @@ All code below runs through the `browser_run_code_unsafe` tool from the Playwrig
 
 ## Reference audit techniques
 
-These are available techniques to use as needed, not a mandatory ordered checklist. Assess the actual situation of the page being audited to decide which steps to run, which to skip, or in what order:
+These are available techniques to use as needed, not a mandatory ordered checklist. Assess the actual situation of the page being audited to decide which steps to run, which to skip, or in what order.
+
+**TBT is a first-class metric, not optional** — never treat the audit as done just because LCP was explained. Always check TBT against the thresholds in section 2, and if it's still Poor/Needs Improvement after the standard techniques below, keep narrowing (see "Iterative narrowing" in section 3) until either TBT reaches Good/Needs Improvement, or every remaining contributor has been isolated and reported individually.
 
 - **Measure baseline** — median of 3-4 runs, under both conditions: Slow 4G + CPU throttle 4x (to surface the bottleneck clearly) and Regular 4G (to know the real-world experience). Usually worth doing first to have a comparison point, but can be skipped if the user already provided baseline numbers.
 - **Block suspect resource groups** (third-party, by group) — always check that `lcpUrl` is the same element before/after comparing LCP. Skip this if there's no suspicious third-party, or if the breakdown already points straight to the cause.
 - **LCP breakdown** (section 4) — use to confirm whether the cause is `resourceLoadTime` (heavy image/bandwidth) or `elementRenderDelay` (JS delaying render) when you need to distinguish between these two very different causes. Can be run first if you want a quick overview before digging into individual resources.
 - **CPU Profiling** (section 6) — use when you suspect JS is blocking the main thread and need real CPU numbers instead of guessing from network behavior. If JS-blocking is the obvious suspicion from the start, this can run before the breakdown.
 - **Cross-check PSI field data** (section 7) — usually best done last since it's the metric that decides whether further optimization is even worth it, but can be checked early to gauge severity before investing time in deep investigation.
+- **Check local source code** (section 8) — if the working directory is the actual theme/app/storefront source (not just a live URL with no local code), and TBT/LCP are still poor after the live-measurement techniques above, cross-reference the CPU profiling / blocking results against the local codebase to point recommendations at an exact file/line instead of just "the theme".
 
 ## Final report
 
@@ -34,7 +37,7 @@ When the investigation is done, write the findings to a markdown file instead of
 
 ## Baseline
 - LCP (median of N runs): <value>
-- TBT (median of N runs): <value>
+- TBT (median of N runs): <value> — <Good | Needs Improvement | Poor>
 - LCP element: <lcpUrl>
 
 ## LCP Breakdown
@@ -44,10 +47,13 @@ When the investigation is done, write the findings to a markdown file instead of
 - Element render delay: <value>
 
 ## Resource blocking results
-<table or list of what was blocked and the resulting LCP/TBT, only if this step was run>
+<table or list of what was blocked and the resulting LCP/TBT (with TBT rating per scenario), only if this step was run — include iterative-narrowing rounds if TBT stayed Poor after the first combined block>
 
 ## CPU profiling results
 <top offending scripts by self time, only if this step was run>
+
+## Source code findings
+<file:line references for the offending embeds/scripts found in the local codebase, only if section 8 was run>
 
 ## PSI field data
 <CrUX field data LCP, only if this step was checked>
@@ -209,6 +215,16 @@ const data = await p.evaluate(() => {
 
 **Note on noise:** numbers vary quite a lot between runs (same page, same conditions, LCP can swing by several seconds). Run at least 2-4 times per scenario, use the **median**, don't trust a single run. When comparing two scenarios (before/after a fix), **interleave** the run order (A, B, A, B, ...) instead of running all of A then all of B, to avoid noise from the measuring machine's load changing over time.
 
+**TBT thresholds (Lighthouse standard, use these to judge "is this actually fixed"):**
+
+| TBT (median) | Rating |
+|---|---|
+| ≤ 200ms | Good |
+| 200ms – 600ms | Needs Improvement |
+| > 600ms | Poor |
+
+Don't stop at "TBT dropped from X to Y" — say which band Y falls into. If a blocking/defer test still leaves TBT in "Poor", the audit isn't finished: keep isolating (section 3's iterative narrowing) or fall back to source-code inspection (section 8).
+
 ---
 
 ## 3. Block individual resources to find the cause (`page.route`)
@@ -227,6 +243,14 @@ for (const pattern of PATTERNS_TO_BLOCK) {
 **How to interpret results — important, easy to get wrong:**
 - If blocking one resource makes LCP drop sharply, that **doesn't necessarily mean that resource was "heavy"** — LCP might simply have **jumped to measuring a different element** instead (a false signal). Always check the returned `lcpUrl` before/after to confirm you're comparing the same element.
 - To know the REAL impact of N individual resources, add a "block everything at once" scenario to see the combined effect — don't jump to conclusions from blocking things one at a time (many individually-harmless-looking third parties can add up to something significant).
+
+**Iterative narrowing — don't stop at one combined test:**
+
+If "block everything" brings TBT into Good/Needs Improvement, you're done — report the full list as the cause. But if TBT is still **Poor** after blocking every suspect group at once, that's a signal there's another contributor not yet identified (first-party theme JS, a script outside the patterns you guessed, etc.) — don't report "third-party apps are the cause" as the final answer in that case. Instead:
+
+1. Re-run CPU profiling (section 6) on the "everything blocked" scenario to see what's now the top offender — it was previously hidden in the noise.
+2. Bisect: split the remaining unblocked scripts into two halves, block one half, re-measure TBT, repeat on whichever half still shows high TBT — narrows to the specific file within a few rounds instead of guessing.
+3. Keep going until either TBT reaches Good/Needs Improvement, or you've isolated specific script(s) that remain and can name them individually as the root cause (at which point section 8 may help pinpoint the actual code).
 
 ### Common pattern reference (Playwright glob vs Chrome DevTools URLPattern)
 
@@ -394,3 +418,21 @@ await page.goto('https://pagespeed.web.dev/analysis/https-<domain>/<report-id>?f
 await page.waitForTimeout(3000);
 // use browser_snapshot or browser_find to read the numbers, or click the "LCP breakdown"/"3rd parties" groups to expand details
 ```
+
+---
+
+## 8. When live measurement isn't enough — check local source code
+
+Only applies when the working directory actually **is** the site's source (a Shopify theme repo, a Hydrogen/custom storefront app, etc.) — skip this entirely when auditing a URL with no local code access.
+
+If TBT/LCP are still Poor after sections 1-6 (baseline, blocking, breakdown, CPU profiling) and the iterative narrowing in section 3 has named specific offending script(s)/URL(s) but you haven't pinned an exact file/line yet, search the local codebase instead of guessing further from network behavior alone:
+
+- **Match CPU-profiling URLs to local files** — the `url` field from section 6's ranked list (e.g. `.../assets/vendor.js`, `.../extensions/.../runtime.js`) usually maps directly to a file in the theme's `assets/`/`src/` or to a third-party script tag. Grep the codebase for that filename or for the app's handle to find where it's enqueued.
+- **Grep for the actual embed points**, not just the asset — search `layout/theme.liquid`, `sections/*.liquid`, `snippets/*.liquid` (Shopify theme) or the app's root layout/head component (Hydrogen/custom) for `<script`, `{% render %}`, or app-block inclusions referencing the offending app/tracker. That's the line to edit to add `defer`/lazy-load, not the vendor asset itself.
+- **Common anti-patterns to grep for:**
+  - `<script` tags without `defer`/`async`/`type="module"` in the `<head>`
+  - Third-party embeds placed above the fold instead of gated behind `requestIdleCallback`/`IntersectionObserver`/`window.addEventListener('load', ...)`
+  - `<img>`/`<source>` for below-the-fold content missing `loading="lazy"`
+  - The LCP element itself missing `fetchpriority="high"` or explicit `width`/`height` (layout shift risk, separate from LCP but often found together)
+  - App blocks/snippets rendered unconditionally on every page instead of conditioned on the template (e.g. a reviews widget loading on collection pages where no reviews are shown)
+- Report findings with actual `file:line` references so recommendations in the final report are directly actionable, not just "the theme has too many apps."
